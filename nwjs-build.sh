@@ -5,7 +5,10 @@
 # For usage see: ./nwjs-build.sh --help                              #
 ######################################################################
 
-SCRIPT_VER='1.0.4'
+SCRIPT_VER='1.0.5'
+
+## each separate version number must be less than 3 digit wide !
+function version { echo "$@" | gawk -F. '{ printf("%03d%03d%03d\n", $1,$2,$3); }'; }
 
 # Current working directory
 WORKING_DIR="$(cd -P -- "$(dirname -- "$0")" && pwd -P)";
@@ -18,7 +21,9 @@ LOCAL_NW_ARCHIVES_MODE=false
 LOCAL_NW_ARCHIVES_PATH="${WORKING_DIR}/nwjs_download_cache"
 
 # Default nwjs version
-NW_VERSION='0.11.6';
+NW_VERSION='0.13.0';
+NW_VERSION_LAST_PAK='0.12.3';
+SDK="";
 
 # Base domain for nwjs download server
 DL_URL="http://dl.nwjs.io"
@@ -56,6 +61,7 @@ PKG_NAME="${USER}app"
 PKG_VERSION="1.0.0"
 
 CFBundleIdentifier="com.${PKG_NAME}"
+PRODUCT_STRING=""
 
 # Handle libudev on linux
 LIBUDEV_HANDLER=false
@@ -297,10 +303,17 @@ make_bins() {
 }
 
 mk_linux() {
-cat ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/nwjs/nw ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/latest-git/${PKG_NAME}.nw > ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/latest-git/${PKG_NAME}
+cat ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/nwjs${SDK}-v${NW_VERSION}-${ARR_OS[$i]}/nw ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/latest-git/${PKG_NAME}.nw > ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/latest-git/${PKG_NAME}
         rm ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/latest-git/${PKG_NAME}.nw
-        chmod +x ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/latest-git/${PKG_NAME}
-        cp ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/nwjs/{icudtl.dat,nw.pak,*.so} ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/latest-git/
+        chmod +x ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/latest-git/${PKG_NAME}        
+
+        if [ "$(version "${NW_VERSION}")" -gt "$(version "${NW_VERSION_LAST_PAK}")" ]; then
+            echo "${NW_VERSION} is greater than ${NW_VERSION_LAST_PAK} !"
+            cp -r ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/nwjs${SDK}-v${NW_VERSION}-${ARR_OS[$i]}/* ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/latest-git/
+        else
+            echo "${NW_VERSION} uses the deprecated package structure !"
+            cp ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/nwjs${SDK}-v${NW_VERSION}-${ARR_OS[$i]}/{icudtl.dat,nw.pak,*.so} ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/latest-git/
+        fi
         cd ${WORKING_DIR}/${TMP}/${1}/latest-git
 
         if [[ ${LIBUDEV_HANDLER} = "true" ]];then
@@ -321,12 +334,13 @@ for i in "${paths[@]}"
 do
   if [ -f ${i} ]
   then
-    mkdir ${HERE}/lib
+    mkdir -p ${HERE}/lib
     ln -sf "$i" ${HERE}/lib/libudev.so.0
     break
   fi
 done
 export LD_LIBRARY_PATH=$([ -n "$LD_LIBRARY_PATH" ] && echo "$HERE:$HERE/lib:$LD_LIBRARY_PATH" || echo "$HERE:$HERE/lib")
+printf "${TXT_BOLD}${TXT_YELLO}$0 ${HERE}/PACKAGE_NAME_PLACE_HOLDER-bin $@${TXT_RESET}\n"
 exec -a "$0" "${HERE}/PACKAGE_NAME_PLACE_HOLDER-bin" "$@"
 gisto_libudev_helper
         replace PACKAGE_NAME_PLACE_HOLDER ${PKG_NAME} -- ${PKG_NAME}
@@ -339,13 +353,13 @@ gisto_libudev_helper
 }
 
 mk_windows() {
-    cat ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/nwjs/nw.exe ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/latest-git/${PKG_NAME}.nw > ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/latest-git/${PKG_NAME}.exe
+    cat ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/nwjs${SDK}-v${NW_VERSION}-${ARR_OS[$i]}/nw.exe ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/latest-git/${PKG_NAME}.nw > ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/latest-git/${PKG_NAME}.exe
     rm ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/latest-git/${PKG_NAME}.nw
     
     if [[ -f "${WIN_RESOURCE_ICO}" ]];then
         cp ${WIN_RESOURCE_ICO} ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/latest-git/
     fi
-	cp ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/nwjs/{icudtl.dat,nw.pak,*.dll} ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/latest-git/
+	cp ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/nwjs${SDK}-v${NW_VERSION}-${ARR_OS[$i]}/{icudtl.dat,nw.pak,*.dll} ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/latest-git/
 	
     cd ${WORKING_DIR}/${TMP}/${1}/latest-git
     zip -qq -r ${PKG_NAME}-${DATE}-${1}.zip *;
@@ -354,12 +368,12 @@ mk_windows() {
 }
 
 mk_osx() {
-    cp -r ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/nwjs/*.app ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/latest-git/${PKG_NAME}.app;
+    cp -r ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/nwjs${SDK}-v${NW_VERSION}-${ARR_OS[$i]}/*.app ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/latest-git/${PKG_NAME}.app;
     cp -r ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/latest-git/${PKG_NAME}.nw ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/latest-git/${PKG_NAME}.app/Contents/Resources/app.nw;
     rm -r ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/latest-git/${PKG_NAME}.nw
 
 	# check if it is nwjs or node-webkit
-	if [[ -d "${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/nwjs/nwjs.app" ]]; then
+	if [[ -d "${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/nwjs${SDK}-v${NW_VERSION}-${ARR_OS[$i]}/nwjs.app" ]]; then
 		CFBundleExecutable="nwjs"
 	else
 		CFBundleExecutable="node-webkit"
@@ -368,53 +382,44 @@ mk_osx() {
     if [[ -f "${OSX_RESOURCE_ICNS}" ]];then
         cp -r ${OSX_RESOURCE_ICNS} ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/latest-git/${PKG_NAME}.app/Contents/Resources/
     else
-        OSX_RESOURCE_ICNS="${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/nwjs/node-webkit.app/Contents/Resources/nw.icns"
+        OSX_RESOURCE_ICNS="${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/nwjs${SDK}-v${NW_VERSION}-${ARR_OS[$i]}/node-webkit.app/Contents/Resources/nw.icns"
     fi
-    rm ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/latest-git/${PKG_NAME}.app/Contents/Info.plist
-cat << gisto_plist_helper >> ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/latest-git/${PKG_NAME}.app/Contents/Info.plist
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-	<key>CFBundleDevelopmentRegion</key>
-	<string>en</string>
-	<key>CFBundleDisplayName</key>
-	<string>$(upper_case_word ${PKG_NAME})</string>
-	<key>CFBundleDocumentTypes</key>
-	<array/>
-	<key>CFBundleExecutable</key>
-	<string>${CFBundleExecutable}</string>
-	<key>CFBundleIconFile</key>
-    <string>$(echo "${OSX_RESOURCE_ICNS}" | rev | cut -d"/" -f1 | rev)</string>
-	<key>CFBundleIdentifier</key>
-	<string>${CFBundleIdentifier}</string>
-	<key>CFBundleInfoDictionaryVersion</key>
-	<string>6.0</string>
-	<key>CFBundleName</key>
-	<string>$(upper_case_word ${PKG_NAME})</string>
-	<key>CFBundlePackageType</key>
-	<string>APPL</string>
-	<key>CFBundleShortVersionString</key>
-	<string>${PKG_VERSION}</string>
-	<key>CFBundleVersion</key>
-	<string>${PKG_VERSION}</string>
-	<key>LSFileQuarantineEnabled</key>
-	<true/>
-	<key>LSMinimumSystemVersion</key>
-	<string>10.6.0</string>
-	<key>NSPrincipalClass</key>
-	<string>NSApplication</string>
-	<key>NSSupportsAutomaticGraphicsSwitching</key>
-	<true/>
-	<key>NSHumanReadableCopyright</key>
-    <string>Copyright (c) $(date +"%Y") $(upper_case_word ${PKG_NAME})</string>
-	<key>SCMRevision</key>
-	<string>175484</string>
-	<key>UTExportedTypeDeclarations</key>
-	<array/>
-</dict>
-</plist>
-gisto_plist_helper
+    #rm ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/latest-git/${PKG_NAME}.app/Contents/Info.plist
+
+    # * Contents/Info.plist - CFBundleDisplayName
+
+    sed -i "/<key>CFBundleDisplayName<\/key>/!b;n;c<string>$PKG_NAME</string>" ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/latest-git/${PKG_NAME}.app/Contents/Info.plist
+    sed -i "/<key>CFBundleName<\/key>/!b;n;c<string>$PKG_NAME</string>" ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/latest-git/${PKG_NAME}.app/Contents/Info.plist
+    sed -i "/<key>CFBundleShortVersionString<\/key>/!b;n;c<string>$PKG_VERSION</string>" ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/latest-git/${PKG_NAME}.app/Contents/Info.plist
+    sed -i "/<key>CFBundleVersion<\/key>/!b;n;c<string>$PKG_VERSION</string>" ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/latest-git/${PKG_NAME}.app/Contents/Info.plist
+    sed -i "/<key>CFBundleTypeIconFile<\/key>/!b;n;c<string>$(echo \"${OSX_RESOURCE_ICNS}\" | rev | cut -d'/' -f1 | rev)</string>" ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/latest-git/${PKG_NAME}.app/Contents/Info.plist
+
+    # * Contents/Resources/en.lproj/InfoPlist.strings - CFBundleDisplayName
+    rm ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/latest-git/${PKG_NAME}.app/Contents/Resources/en.lproj/InfoPlist.strings
+cat << gisto_infoPlist_helper >> ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/latest-git/${PKG_NAME}.app/Contents/Resources/en.lproj/InfoPlist.strings
+CFBundleDisplayName = "$(upper_case_word ${PKG_NAME})";
+CFBundleGetInfoString = "nwjs 60.0.3112.113, Copyright 2017 The Chromium Authors, NW.js contributors, Node.js. All rights reserved.";
+CFBundleName = "$(upper_case_word ${PKG_NAME})";
+NSContactsUsageDescription = "Details from your contacts can help you fill out forms more quickly in Chromium.";
+NSHumanReadableCopyright = "Copyright 2017 The Chromium Authors, NW.js contributors, Node.js. All rights reserved.";
+gisto_infoPlist_helper
+
+    # * Contents/Versions/n.n.n.n/nwjs Helper.app/Contents/MacOS/nwjs Helper - rename the file to ‘foobar Helper’
+    # PRODUCT_STRING will be the correct path for "nwjs Helper.app" folder for any version number of the parent folder
+    PRODUCT_STRING="$(find ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/latest-git/${PKG_NAME}.app/Contents/Versions/ -mindepth 1 -name '*Helper.app' -type d)";
+    NOTE 'FIND';
+    #printf "Bulding ${TXT_BOLD}${TXT_RED}${PRODUCT_STRING}${TXT_RESET}\n"
+    mv "${PRODUCT_STRING}/Contents/MacOS/nwjs Helper" "${PRODUCT_STRING}/Contents/MacOS/${PKG_NAME} Helper"
+
+    # * Contents/Versions/n.n.n.n/nwjs Helper.app/Contents/Info.plist - change CFBundleDisplayName
+
+    sed -i "/<key>CFBundleDisplayName<\/key>/!b;n;c<string>$PKG_NAME Helper</string>" "${PRODUCT_STRING}/Contents/Info.plist"
+    sed -i "/<key>CFBundleName<\/key>/!b;n;c<string>$PKG_NAME Helper</string>" "${PRODUCT_STRING}/Contents/Info.plist"
+
+    # * Contents/Versions/n.n.n.n/nwjs Helper.app - rename the directory to ‘foobar Helper.app’
+
+    mv "${PRODUCT_STRING}" "$(echo ${PRODUCT_STRING} | sed 's/\(.*\)\/.*/\1/')/${PKG_NAME} Helper.app"
+
     cd ${WORKING_DIR}/${TMP}/${1}/latest-git
     zip -qq -r ${PKG_NAME}-${DATE}-${1}.zip *;
     mv ${PKG_NAME}-${DATE}-${1}.zip ${RELEASE_DIR};
@@ -427,16 +432,16 @@ build() {
         mkdir -p ${LOCAL_NW_ARCHIVES_PATH};
         NOTE 'WORKING';
         printf "Bulding ${TXT_BOLD}${TXT_YELLO}${PKG_NAME}${TXT_RESET} for ${TXT_BOLD}${TXT_YELLO}${ARR_OS[$i]}${TXT_RESET}\n"
-        for DL_FILE in ${LOCAL_NW_ARCHIVES_PATH}/*-v${NW_VERSION}-${ARR_OS[$i]}.${ARR_DL_EXT[$i]}; do
+        for DL_FILE in ${LOCAL_NW_ARCHIVES_PATH}/*${SDK}-v${NW_VERSION}-${ARR_OS[$i]}.${ARR_DL_EXT[$i]}; do
             if [[ -f "${DL_FILE}" || ${LOCAL_NW_ARCHIVES_MODE} = "TRUE" || ${LOCAL_NW_ARCHIVES_MODE} = "true" || ${LOCAL_NW_ARCHIVES_MODE} = "1" ]]; then
                 NOTE 'NOTE';
-                printf "File ${TXT_YELLO}nwjs-${NW_VERSION}-${ARR_OS[$i]}.${ARR_DL_EXT[$i]}${TXT_RESET} is in the download cache\n- no need to re-download\n"
+                printf "File ${TXT_YELLO}nwjs${SDK}-${NW_VERSION}-${ARR_OS[$i]}.${ARR_DL_EXT[$i]}${TXT_RESET} is in the download cache\n- no need to re-download\n"
                 cp ${LOCAL_NW_ARCHIVES_PATH}/*-v${NW_VERSION}-${ARR_OS[$i]}.${ARR_DL_EXT[$i]} ${WORKING_DIR}/${TMP};
             else
-                wget -O ${LOCAL_NW_ARCHIVES_PATH}/nwjs-v${NW_VERSION}-${ARR_OS[$i]}.${ARR_DL_EXT[$i]} ${DL_URL}/v${NW_VERSION}/node-webkit-v${NW_VERSION}-${ARR_OS[$i]}.${ARR_DL_EXT[$i]} || wget -O ${LOCAL_NW_ARCHIVES_PATH}/nwjs-v${NW_VERSION}-${ARR_OS[$i]}.${ARR_DL_EXT[$i]} ${DL_URL}/v${NW_VERSION}/nwjs-v${NW_VERSION}-${ARR_OS[$i]}.${ARR_DL_EXT[$i]};
+                wget -O ${LOCAL_NW_ARCHIVES_PATH}/nwjs${SDK}-v${NW_VERSION}-${ARR_OS[$i]}.${ARR_DL_EXT[$i]} ${DL_URL}/v${NW_VERSION}/node-webkit-v${NW_VERSION}-${ARR_OS[$i]}.${ARR_DL_EXT[$i]} || wget -O ${LOCAL_NW_ARCHIVES_PATH}/nwjs${SDK}-v${NW_VERSION}-${ARR_OS[$i]}.${ARR_DL_EXT[$i]} ${DL_URL}/v${NW_VERSION}/nwjs${SDK}-v${NW_VERSION}-${ARR_OS[$i]}.${ARR_DL_EXT[$i]};
             fi
             extractme "${ARR_EXTRACT_COMMAND[$i]}" "${DL_FILE}" "${WORKING_DIR}/${TMP}/${ARR_OS[$i]}";
-            mv ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/*-v${NW_VERSION}-${ARR_OS[$i]} ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/nwjs;
+            #mv ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/*${SDK}-v${NW_VERSION}-${ARR_OS[$i]} ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/nwjs${SDK}-v${NW_VERSION}-${ARR_OS[$i]};
 
             if [[ `split_string "${ARR_OS[$i]}" "-"` = "osx" ]]; then
                 cp -r ${PKG_SRC} ${WORKING_DIR}/${TMP}/${ARR_OS[$i]}/latest-git/${PKG_NAME}.nw;
@@ -508,6 +513,10 @@ while true; do
         ;;
     --libudev )
         LIBUDEV_HANDLER=true
+        shift
+        ;;
+    --sdk )
+        SDK="-sdk"
         shift
         ;;
     --build )
